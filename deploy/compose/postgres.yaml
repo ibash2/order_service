@@ -1,0 +1,56 @@
+services:
+  db_migration:
+    build:
+      context: ../../
+      dockerfile: ./deploy/compose/api/Dockerfile
+
+    restart: on-failure
+    volumes:
+      - ../../alembic.ini:/app/alembic.ini:ro
+      - ../../app/:/app/app/
+
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      WEBSOCKET_RPC: ${WEBSOCKET_RPC}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      SOLANA_RPC: ${SOLANA_RPC}
+      MQ_URL: ${MQ_URL}
+
+    depends_on:
+      app-db:
+        condition: service_healthy
+
+    command: ["alembic", "upgrade", "head"]
+
+  database:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_HOST: app-db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      ADMIN_USERS: postgres,${POSTGRES_USER}
+    ports:
+      - "5431:5432"
+
+  app-db:
+    image: postgres:14.5-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: --auth=md5
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+volumes:
+  db-data:

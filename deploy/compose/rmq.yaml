@@ -1,0 +1,11 @@
+services:
+  app-mq:
+    image: rabbitmq:3-management
+    ports:
+      - "15671:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 3
+

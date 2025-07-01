@@ -1,0 +1,30 @@
+services:
+  user-service:
+    build: ./user_service
+    labels:
+      - "traefik.http.routers.user.rule=PathPrefix(`/user`)"
+      - "traefik.http.services.user.loadbalancer.server.port=8000"
+
+  order-service:
+    build: ./order_service
+    labels:
+      - "traefik.http.routers.order.rule=PathPrefix(`/order`)"
+      - "traefik.http.services.order.loadbalancer.server.port=8000"
+
+  order-processor:
+    build:
+      context: ../../
+      dockerfile: ./deploy/compose/api/Dockerfile
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MQ_URL: ${MQ_URL}
+      
+    ports:
+      - ${API_PORT}:8000
+
+    depends_on:
+      app-db:
+        condition: service_healthy
+    
+    command: ""
