@@ -12,9 +12,12 @@ class GetUserQuery(Query):
 
 
 @dataclass(frozen=True)
-class GetPairTransactionsQueryHandler(QueryHandler[GetUserQuery, dto]):
+class GetUserQueryHandler(QueryHandler[GetUserQuery, dto.UserDto]):
     uow: UnitOfWork
     user_reader: UserReader
 
-    async def handle(self, query: GetUserQuery) -> dto:
-        pass
+    async def handle(self, query: GetUserQuery) -> dto.UserDto:
+        async with self.uow:
+            user = await self.user_reader.get_user(query.user_id)
+
+        return user

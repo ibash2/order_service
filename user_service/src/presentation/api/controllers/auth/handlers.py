@@ -3,17 +3,14 @@ from fastapi import APIRouter, Depends, status
 
 from punq import Container
 
-from application.user.commands.user import AuthCommand, CreateNonceCommand, CreateSessionCommand, WalletAuthCommand
 from infrastructure.mediator.base import Mediator
-from infrastructure.init import init_container, resolve_mediator
+from infrastructure.init import resolve_mediator
+from application.user.commands.create_user import CreateUserCommand
 from presentation.api.controllers.schemas import ErrorSchema
 from presentation.api.controllers.auth.schemas import (
+    AuthRequestSchema,
     AuthResponseSchema,
-    CreateNonceResponse,
-    InitDataModel,
-    WalletAuthRequest,
 )
-from presentation.api.controllers.auth.dependencies import valid_init_data
 
 router = APIRouter(tags=["Auth"], prefix="/auth")
 
@@ -28,12 +25,15 @@ router = APIRouter(tags=["Auth"], prefix="/auth")
     },
 )
 async def create_session(
-    container: Container = Depends(init_container),
+    body: AuthRequestSchema,
+    mediator: Mediator = Depends(resolve_mediator),
 ) -> AuthResponseSchema:
     """Создает временную сессию для пользователя."""
-    mediator: Mediator = container.resolve(Mediator)  # type: ignore
-
-    session_id, *_ = await mediator.handle_command(CreateSessionCommand())
+    session_id, *_ = await mediator.handle_command(
+        CreateUserCommand(
+            login=body.login,
+            password=body.password,
+        )
+    )
 
     return AuthResponseSchema.from_data(session_id)
-

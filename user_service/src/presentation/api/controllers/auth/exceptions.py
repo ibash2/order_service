@@ -17,9 +17,3 @@ class InvalidToken(AuthException):
     @property
     def message(self):
         return "Invalid token"
-
-
-class InitDataNotValid(DomainError):
-    @property
-    def message(self):
-        return "Init data is not valid"

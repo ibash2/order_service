@@ -4,6 +4,7 @@ import abc
 
 from application.user import dto
 
+
 class UserReader(Protocol):
-    pass
-    
+    @abc.abstractmethod
+    async def get_user(self, user_id: str) -> dto.UserDto: ...

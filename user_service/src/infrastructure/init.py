@@ -18,8 +18,15 @@ from application.user.queries.get_user import (
 )
 from application.common.event import MediatorProtocol
 from application.user.interfaces.persistence.reader import UserReader
-from application.user.commands.create_user import CreateUserCommand, CreateUserCommandHandler
-from user_service.src.infrastructure.persistence.db.repositories.user import BasePairRepository, SqlAlchemyPairRepository
+from application.user.commands.create_user import (
+    CreateUserCommand,
+    CreateUserCommandHandler,
+)
+from infrastructure.persistence.db.repositories.user import (
+    BasePairRepository,
+    SqlAlchemyPairRepository,
+    SqlAlchemyUserRepository,
+)
 
 
 from infrastructure.mediator.base import Mediator
@@ -37,7 +44,10 @@ from infrastructure.message_brokers.base import BaseMessageBroker
 from infrastructure.message_brokers.rmq import RabbitMessageBroker
 
 from settings.config import Config
-from user_service.src.application.user.events.user_created import UserCreatedEventHandler
+from user_service.src.application.user.events.user_created import (
+    UserCreatedEventHandler,
+)
+from user_service.src.application.user.interfaces.persistence.repo import UserRepo
 from user_service.src.domain.user.events.new_pair import UserCreatedEvent
 
 
@@ -58,7 +68,6 @@ def _init_container() -> Container:
     container.register(Config, instance=Config())  # type: ignore
     config: Config = container.resolve(Config)  # type: ignore
 
-  
     # Database
     container.register(
         AsyncEngine,
@@ -74,33 +83,38 @@ def _init_container() -> Container:
 
     # Message Broker
     def create_message_broker() -> BaseMessageBroker:
-        return RabbitMessageBroker(config=EventBusConfig(host=config.MQ_HOST, port=int(config.MQ_PORT)))
+        return RabbitMessageBroker(
+            config=EventBusConfig(host=config.MQ_HOST, port=int(config.MQ_PORT))
+        )
 
     container.register(
         BaseMessageBroker,
         factory=create_message_broker,
         scope=Scope.singleton,
     )
-  
+
     # Repositories
-    container.register(BasePairRepository, SqlAlchemyPairRepository)
+    container.register(UserRepo, SqlAlchemyUserRepository)
 
     # Readers
-    container.register(UserReader, PASS)
-
+    container.register(UserReader, SqlAlchemyUserRepository)
 
     # Mediator
     mediator = Mediator(container)
 
     # commands
     mediator.register_command(CreateUserCommand, CreateUserCommandHandler)
-    
+
     # queries
     mediator.register_query(GetUserQuery, GetPairTransactionsQueryHandler)
     mediator.register_query(GetTransactionsStatsQuery, GetTransactionsStatsQueryHandler)
 
     # event
-    mediator.register_event(UserCreatedEvent, UserCreatedEventHandler, broker_topic=config.user_created_topic)
+    mediator.register_event(
+        UserCreatedEvent,
+        UserCreatedEventHandler,
+        broker_topic=config.user_created_topic,
+    )
 
     container.register(Mediator, instance=mediator)
     container.register(MediatorProtocol, instance=mediator)

@@ -10,16 +10,27 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
 )
-from application.user.queries.get_user import (
-    GetUserQuery,
-    GetPairTransactionsQueryHandler,
-    GetTransactionsStatsQuery,
-    GetTransactionsStatsQueryHandler,
+from order_service.src.application.order.commands.process_order import (
+    ProcessOrderCommand,
+    ProcessOrderCommandHandler,
+)
+from application.order.events.order_created import OrderCreatedEventHandler
+from application.order.interfaces.persistence.repo import OrderRepo
+from application.order.queries.get_user_orders import (
+    GetUserOrdersQuery,
+    GetUserOrdersQueryHandler,
 )
 from application.common.event import MediatorProtocol
-from application.user.interfaces.persistence.reader import UserReader
-from application.user.commands.create_user import CreateUserCommand, CreateUserCommandHandler
-from user_service.src.infrastructure.persistence.db.repositories.user import BasePairRepository, SqlAlchemyPairRepository
+from application.order.interfaces.persistence.reader import OrderReader, UserReader
+from application.order.commands.create_order import (
+    CreateOrderCommand,
+    CreateOrderCommandHandler,
+)
+from order_service.src.domain.order.events.new_order import OrderCreatedEvent
+from order_service.src.domain.order.events.order_updated import OrderUpdatedEvent
+from order_service.src.infrastructure.persistence.db.repositories.order import (
+    SqlAlchemyOrderRepository,
+)
 
 
 from infrastructure.mediator.base import Mediator
@@ -37,8 +48,6 @@ from infrastructure.message_brokers.base import BaseMessageBroker
 from infrastructure.message_brokers.rmq import RabbitMessageBroker
 
 from settings.config import Config
-from user_service.src.application.user.events.user_created import UserCreatedEventHandler
-from user_service.src.domain.user.events.new_pair import UserCreatedEvent
 
 
 @lru_cache(1)
@@ -58,7 +67,6 @@ def _init_container() -> Container:
     container.register(Config, instance=Config())  # type: ignore
     config: Config = container.resolve(Config)  # type: ignore
 
-  
     # Database
     container.register(
         AsyncEngine,
@@ -74,33 +82,43 @@ def _init_container() -> Container:
 
     # Message Broker
     def create_message_broker() -> BaseMessageBroker:
-        return RabbitMessageBroker(config=EventBusConfig(host=config.MQ_HOST, port=int(config.MQ_PORT)))
+        return RabbitMessageBroker(
+            config=EventBusConfig(host=config.MQ_HOST, port=int(config.MQ_PORT))
+        )
 
     container.register(
         BaseMessageBroker,
         factory=create_message_broker,
         scope=Scope.singleton,
     )
-  
+
     # Repositories
-    container.register(BasePairRepository, SqlAlchemyPairRepository)
+    container.register(OrderRepo, SqlAlchemyOrderRepository)
 
     # Readers
-    container.register(UserReader, PASS)
-
+    container.register(OrderReader, SqlAlchemyOrderRepository)
 
     # Mediator
     mediator = Mediator(container)
 
     # commands
-    mediator.register_command(CreateUserCommand, CreateUserCommandHandler)
-    
+    mediator.register_command(CreateOrderCommand, CreateOrderCommandHandler)
+    mediator.register_command(ProcessOrderCommand, ProcessOrderCommandHandler)
+
     # queries
-    mediator.register_query(GetUserQuery, GetPairTransactionsQueryHandler)
-    mediator.register_query(GetTransactionsStatsQuery, GetTransactionsStatsQueryHandler)
+    mediator.register_query(GetUserOrdersQuery, GetUserOrdersQueryHandler)
 
     # event
-    mediator.register_event(UserCreatedEvent, UserCreatedEventHandler, broker_topic=config.user_created_topic)
+    mediator.register_event(
+        OrderCreatedEvent,
+        OrderCreatedEventHandler,
+        broker_topic=config.order_created_topic,
+    )
+    # mediator.register_event(
+    #     OrderUpdatedEvent,
+    #     OrderUpdatedEventHandler,
+    #     broker_topic=config.order_updated_topic,
+    # )
 
     container.register(Mediator, instance=mediator)
     container.register(MediatorProtocol, instance=mediator)

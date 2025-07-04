@@ -14,3 +14,8 @@ class AuthResponseSchema(BaseModel):
     @classmethod
     def from_data(cls, data: str) -> "AuthResponseSchema":
         return cls(status="success", token=data)
+
+
+class AuthRequestSchema(BaseModel):
+    login: str
+    password: str
